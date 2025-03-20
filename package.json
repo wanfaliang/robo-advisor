@@ -1,0 +1,18 @@
+{
+  "devDependencies": {
+    "@types/react": "^19.0.12",
+    "@types/react-dom": "^19.0.4",
+    "@types/react-router-dom": "^5.3.3"
+  },
+  "dependencies": {
+    "@emotion/react": "^11.14.0",
+    "@emotion/styled": "^11.14.0",
+    "@mui/icons-material": "^6.4.8",
+    "@mui/material": "^6.4.8",
+    "@types/date-fns": "^2.5.3",
+    "@types/recharts": "^1.8.29",
+    "date-fns": "^4.1.0",
+    "react-router-dom": "^6.30.0",
+    "recharts": "^2.15.1"
+  }
+}

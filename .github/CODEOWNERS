@@ -1,0 +1,18 @@
+# Global owners (if no other rule matches)
+* @wanfaliang
+
+# Frontend code owners
+/frontend/ @wanfaliang
+/frontend/src/components/ @wanfaliang
+/frontend/src/types/ @wanfaliang
+
+# Backend code owners
+/backend/ @wanfaliang
+/backend/app/services/ @wanfaliang
+/backend/app/models/ @wanfaliang
+/backend/app/api/ @wanfaliang
+
+# Configuration files
+*.json @wanfaliang
+*.yml @wanfaliang
+*.yaml @wanfaliang 

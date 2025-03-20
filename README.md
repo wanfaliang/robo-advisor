@@ -1,77 +1,117 @@
 # Robo Advisor
 
-A modern automated financial advisory platform that provides personalized investment recommendations and portfolio management services.
+[![Frontend CI](https://github.com/wanfaliang/robo-advisor/actions/workflows/frontend.yml/badge.svg)](https://github.com/wanfaliang/robo-advisor/actions/workflows/frontend.yml)
+[![Backend CI](https://github.com/wanfaliang/robo-advisor/actions/workflows/backend.yml/badge.svg)](https://github.com/wanfaliang/robo-advisor/actions/workflows/backend.yml)
+[![codecov](https://codecov.io/gh/wanfaliang/robo-advisor/branch/main/graph/badge.svg)](https://codecov.io/gh/wanfaliang/robo-advisor)
+
+A modern robo-advisor application that provides automated portfolio management, risk assessment, and investment goal tracking.
 
 ## Features
 
-- **Investor Profile & Risk Assessment**: Personalized questionnaire to determine investment goals and risk tolerance
-- **Portfolio Construction**: Smart asset allocation using Modern Portfolio Theory
-- **Automated Portfolio Management**: Automatic rebalancing, tax-loss harvesting, and dividend reinvestment
-- **Low Fees & Accessibility**: Competitive management fees and low minimum investment requirements
+- Portfolio Management
+  - Asset allocation based on risk profile
+  - Portfolio rebalancing
+  - Transaction history
+  - Performance tracking
 
-## Tech Stack
+- Risk Assessment
+  - Personalized risk profiling
+  - Investment horizon analysis
+  - Goal-based recommendations
 
-- **Frontend**: React, TypeScript, Material-UI
-- **Backend**: Python, FastAPI
-- **Database**: PostgreSQL
-- **Data Analysis**: NumPy, Pandas, scikit-learn
-- **Financial Data**: Yfinance API
+- Investment Goals
+  - Goal tracking with progress indicators
+  - Multiple goal types (retirement, house, education)
+  - Goal-based portfolio recommendations
 
-## Setup Instructions
+## Technology Stack
 
-### Backend Setup
+### Frontend
+- React with TypeScript
+- Material-UI for components
+- Recharts for data visualization
+- Jest and React Testing Library for testing
 
-1. Create a virtual environment:
+### Backend
+- FastAPI (Python)
+- SQLAlchemy for database management
+- NumPy and Pandas for financial calculations
+- Pytest for testing
+
+## Development
+
+### Prerequisites
+- Node.js 18.x
+- Python 3.9
+- npm or yarn
+
+### Setup
+
+1. Clone the repository:
 ```bash
-python -m venv venv
-source venv/bin/activate  # On Windows: .\venv\Scripts\activate
+git clone https://github.com/wanfaliang/robo-advisor.git
+cd robo-advisor
 ```
 
-2. Install dependencies:
-```bash
-pip install -r requirements.txt
-```
-
-3. Set up the database:
-```bash
-python backend/scripts/init_db.py
-```
-
-### Frontend Setup
-
-1. Install dependencies:
+2. Install frontend dependencies:
 ```bash
 cd frontend
 npm install
 ```
 
-2. Start the development server:
+3. Install backend dependencies:
 ```bash
+cd backend
+pip install -r requirements.txt
+```
+
+### Running the Application
+
+1. Start the backend server:
+```bash
+cd backend/app
+uvicorn main:app --reload
+```
+
+2. Start the frontend development server:
+```bash
+cd frontend
 npm start
 ```
 
-## Project Structure
+The application will be available at:
+- Frontend: http://localhost:3000
+- Backend API: http://localhost:8000
+- API Documentation: http://localhost:8000/docs
 
+## Testing
+
+### Frontend Tests
+```bash
+cd frontend
+npm test
 ```
-robo_advisor/
-├── backend/
-│   ├── app/
-│   │   ├── api/
-│   │   ├── core/
-│   │   ├── models/
-│   │   └── services/
-│   ├── tests/
-│   └── requirements.txt
-├── frontend/
-│   ├── src/
-│   │   ├── components/
-│   │   ├── pages/
-│   │   ├── services/
-│   │   └── utils/
-│   └── package.json
-└── README.md
+
+### Backend Tests
+```bash
+cd backend
+pytest tests/
 ```
+
+## Deployment
+
+The application is automatically deployed on push to the main branch:
+- Frontend: Deployed to GitHub Pages at https://wanfaliang.github.io/robo-advisor
+- Backend: [Add your deployment URL]
+
+## Contributing
+
+1. Fork the repository
+2. Create your feature branch (`git checkout -b feature/AmazingFeature`)
+3. Commit your changes (`git commit -m 'Add some AmazingFeature'`)
+4. Push to the branch (`git push origin feature/AmazingFeature`)
+5. Open a Pull Request
 
 ## License
 
-MIT License 
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details. 

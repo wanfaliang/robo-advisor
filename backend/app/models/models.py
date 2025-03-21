@@ -1,10 +1,8 @@
 from sqlalchemy import Column, Integer, String, Float, ForeignKey, DateTime, JSON, Enum
-from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship
 import enum
 from datetime import datetime
-
-Base = declarative_base()
+from ..core.database import Base
 
 class RiskLevel(str, enum.Enum):
     CONSERVATIVE = "conservative"

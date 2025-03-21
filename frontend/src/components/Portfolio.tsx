@@ -20,6 +20,9 @@ import PortfolioCharts from './PortfolioCharts';
 import TransactionHistory from './TransactionHistory';
 import GoalTracking from './GoalTracking';
 import InvestmentGoals from './InvestmentGoals';
+import TaxLossHarvesting from './TaxLossHarvesting';
+import EfficientFrontier from './EfficientFrontier';
+import PortfolioSimulator from './PortfolioSimulator';
 import { PortfolioStats, Asset, Transaction, Goal } from '../types/index';
 
 interface PerformanceData {
@@ -332,6 +335,36 @@ const Portfolio: React.FC<PortfolioProps> = ({ portfolioId }) => {
               </Box>
             </CardContent>
           </Card>
+        </Grid>
+
+        {/* Efficient Frontier */}
+        <Grid item xs={12} md={8}>
+          <EfficientFrontier portfolioId={portfolioId} />
+        </Grid>
+
+        {/* Portfolio Simulator */}
+        <Grid item xs={12}>
+          <PortfolioSimulator 
+            portfolioId={portfolioId} 
+            currentAllocation={Object.fromEntries(
+              assets.map(asset => [asset.symbol, asset.allocation])
+            )}
+            open={true}
+            onClose={() => {}}
+            portfolio={{
+              id: portfolioId,
+              name: "Main Portfolio",
+              total_investment: stats?.investment_amount ?? 0,
+              assets: assets,
+              created_at: new Date().toISOString(),
+              updated_at: new Date().toISOString()
+            }}
+          />
+        </Grid>
+
+        {/* Tax Loss Harvesting */}
+        <Grid item xs={12}>
+          <TaxLossHarvesting portfolioId={portfolioId} />
         </Grid>
 
         {/* Transaction History */}

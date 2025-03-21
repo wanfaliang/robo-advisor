@@ -3,6 +3,7 @@ import pandas as pd
 import yfinance as yf
 from typing import List, Dict, Tuple
 from datetime import datetime, timedelta
+from scipy.optimize import minimize
 
 class PortfolioManager:
     def __init__(self):
@@ -32,14 +33,39 @@ class PortfolioManager:
         cov_matrix = returns.cov() * 252     # Annualized covariance
         return mean_returns, cov_matrix, returns
 
+    def calculate_portfolio_volatility(self, weights: np.ndarray, cov_matrix: np.ndarray) -> float:
+        """Calculate portfolio volatility."""
+        return np.sqrt(np.dot(weights.T, np.dot(cov_matrix, weights)))
+
+    def calculate_portfolio_return(self, weights: np.ndarray, mean_returns: np.ndarray) -> float:
+        """Calculate portfolio expected return."""
+        return np.sum(mean_returns * weights)
+
+    def calculate_sharpe_ratio(self, weights: np.ndarray, mean_returns: np.ndarray, 
+                             cov_matrix: np.ndarray, risk_free_rate: float = 0.02) -> float:
+        """Calculate Sharpe ratio for a portfolio."""
+        portfolio_return = self.calculate_portfolio_return(weights, mean_returns)
+        portfolio_volatility = self.calculate_portfolio_volatility(weights, cov_matrix)
+        return (portfolio_return - risk_free_rate) / portfolio_volatility
+
     def optimize_portfolio(self, risk_level: str) -> Dict[str, float]:
-        """Generate optimal portfolio allocation based on risk level."""
+        """Generate optimal portfolio allocation using modern portfolio theory."""
         # Get historical data
         symbols = list(self.asset_classes.values())
         data = self.get_historical_data(symbols)
         mean_returns, cov_matrix, _ = self.calculate_portfolio_metrics(data)
 
-        # Risk level parameters
+        # Define optimization constraints
+        n_assets = len(symbols)
+        constraints = (
+            {'type': 'eq', 'fun': lambda x: np.sum(x) - 1},  # weights sum to 1
+            {'type': 'ineq', 'fun': lambda x: x}  # weights >= 0
+        )
+
+        # Define bounds for weights (0 to 1)
+        bounds = tuple((0, 1) for _ in range(n_assets))
+
+        # Risk level parameters for initial guess
         risk_params = {
             "conservative": {"stocks": 0.30, "bonds": 0.60, "alternatives": 0.10},
             "moderate_conservative": {"stocks": 0.50, "bonds": 0.40, "alternatives": 0.10},
@@ -48,19 +74,83 @@ class PortfolioManager:
             "aggressive": {"stocks": 0.80, "bonds": 0.10, "alternatives": 0.10},
         }
 
+        # Get initial weights based on risk level
         params = risk_params[risk_level]
-        
-        # Basic allocation based on risk level
-        allocation = {
-            "VTI": params["stocks"] * 0.6,    # 60% of stocks in US
-            "VXUS": params["stocks"] * 0.4,   # 40% of stocks international
-            "BND": params["bonds"] * 0.7,     # 70% of bonds in US
-            "BNDX": params["bonds"] * 0.3,    # 30% of bonds international
-            "VNQ": params["alternatives"] * 0.5,  # 50% of alternatives in real estate
-            "GSG": params["alternatives"] * 0.5,  # 50% of alternatives in commodities
+        initial_weights = np.array([
+            params["stocks"] * 0.6,    # VTI
+            params["stocks"] * 0.4,    # VXUS
+            params["bonds"] * 0.7,     # BND
+            params["bonds"] * 0.3,     # BNDX
+            params["alternatives"] * 0.5,  # VNQ
+            params["alternatives"] * 0.5   # GSG
+        ])
+
+        # Optimize for maximum Sharpe ratio
+        result = minimize(
+            lambda w: -self.calculate_sharpe_ratio(w, mean_returns, cov_matrix),
+            x0=initial_weights,
+            method='SLSQP',
+            bounds=bounds,
+            constraints=constraints
+        )
+
+        # Convert optimized weights to dictionary
+        allocation = dict(zip(symbols, result.x))
+
+        # Add optimization metrics
+        allocation['metrics'] = {
+            'sharpe_ratio': -result.fun,
+            'expected_return': self.calculate_portfolio_return(result.x, mean_returns),
+            'volatility': self.calculate_portfolio_volatility(result.x, cov_matrix)
         }
 
         return allocation
+
+    def calculate_efficient_frontier(self, n_points: int = 100) -> List[Dict]:
+        """Calculate the efficient frontier for the portfolio."""
+        symbols = list(self.asset_classes.values())
+        data = self.get_historical_data(symbols)
+        mean_returns, cov_matrix, _ = self.calculate_portfolio_metrics(data)
+        n_assets = len(symbols)
+
+        # Generate target returns
+        min_return = np.min(mean_returns)
+        max_return = np.max(mean_returns)
+        target_returns = np.linspace(min_return, max_return, n_points)
+
+        efficient_portfolios = []
+        constraints = (
+            {'type': 'eq', 'fun': lambda x: np.sum(x) - 1},
+            {'type': 'eq', 'fun': lambda x: self.calculate_portfolio_return(x, mean_returns) - target_returns[0]},
+            {'type': 'ineq', 'fun': lambda x: x}
+        )
+        bounds = tuple((0, 1) for _ in range(n_assets))
+
+        for target_return in target_returns:
+            constraints = (
+                {'type': 'eq', 'fun': lambda x: np.sum(x) - 1},
+                {'type': 'eq', 'fun': lambda x: self.calculate_portfolio_return(x, mean_returns) - target_return},
+                {'type': 'ineq', 'fun': lambda x: x}
+            )
+
+            result = minimize(
+                lambda w: self.calculate_portfolio_volatility(w, cov_matrix),
+                x0=np.array([1/n_assets] * n_assets),
+                method='SLSQP',
+                bounds=bounds,
+                constraints=constraints
+            )
+
+            if result.success:
+                portfolio = {
+                    'weights': dict(zip(symbols, result.x)),
+                    'expected_return': target_return,
+                    'volatility': result.fun,
+                    'sharpe_ratio': (target_return - 0.02) / result.fun  # Assuming 2% risk-free rate
+                }
+                efficient_portfolios.append(portfolio)
+
+        return efficient_portfolios
 
     def rebalance_portfolio(self, current_allocation: Dict[str, float], 
                           target_allocation: Dict[str, float], 
@@ -130,4 +220,106 @@ class PortfolioManager:
                 annual_income += (weight * investment_amount * dividend_yield) / 10000
             except:
                 continue
-        return annual_income 
+        return annual_income
+
+    def simulate_portfolio(self, allocation: Dict[str, float], 
+                         initial_investment: float,
+                         monthly_contribution: float,
+                         time_horizon: int) -> List[Dict]:
+        """
+        Simulate portfolio performance over a given time horizon.
+        Returns list of portfolio values over time.
+        """
+        symbols = list(allocation.keys())
+        # Add SPY to get benchmark data
+        symbols.append("SPY")
+        data = self.get_historical_data(symbols, period=f"{time_horizon}y")
+        returns = data.pct_change().dropna()
+        
+        # Calculate portfolio returns (excluding SPY)
+        portfolio_returns = (returns[symbols[:-1]] * pd.Series(allocation)).sum(axis=1)
+        
+        # Calculate cumulative portfolio value
+        portfolio_values = []
+        current_value = initial_investment
+        benchmark_value = initial_investment
+        
+        for date, ret in portfolio_returns.items():
+            # Add monthly contribution
+            if date.day == 1:  # First day of each month
+                current_value += monthly_contribution
+                benchmark_value += monthly_contribution
+            
+            # Apply portfolio return
+            current_value *= (1 + ret)
+            
+            # Apply benchmark return (SPY)
+            benchmark_value *= (1 + returns.loc[date, "SPY"])
+            
+            portfolio_values.append({
+                "date": date.strftime("%Y-%m-%d"),
+                "portfolioValue": round(current_value, 2),
+                "benchmarkValue": round(benchmark_value, 2)
+            })
+        
+        return portfolio_values
+
+    def backtest_portfolio(self, allocation: Dict[str, float],
+                         initial_investment: float,
+                         time_horizon: int) -> List[Dict]:
+        """
+        Run a backtest of the portfolio over historical data.
+        Returns list of portfolio values over time.
+        """
+        symbols = list(allocation.keys())
+        # Add SPY to get benchmark data
+        symbols.append("SPY")
+        data = self.get_historical_data(symbols, period=f"{time_horizon}y")
+        returns = data.pct_change().dropna()
+        
+        # Calculate portfolio returns (excluding SPY)
+        portfolio_returns = (returns[symbols[:-1]] * pd.Series(allocation)).sum(axis=1)
+        
+        # Calculate cumulative portfolio value
+        portfolio_values = []
+        current_value = initial_investment
+        benchmark_value = initial_investment
+        
+        for date, ret in portfolio_returns.items():
+            # Apply portfolio return
+            current_value *= (1 + ret)
+            
+            # Apply benchmark return (SPY)
+            benchmark_value *= (1 + returns.loc[date, "SPY"])
+            
+            portfolio_values.append({
+                "date": date.strftime("%Y-%m-%d"),
+                "portfolioValue": round(current_value, 2),
+                "benchmarkValue": round(benchmark_value, 2)
+            })
+        
+        return portfolio_values
+
+    def analyze_scenario(self, allocation: Dict[str, float],
+                        initial_investment: float,
+                        time_horizon: int) -> Dict:
+        """
+        Analyze a what-if scenario for the portfolio.
+        Returns performance metrics for the scenario.
+        """
+        backtest_results = self.backtest_portfolio(allocation, initial_investment, time_horizon)
+        
+        # Calculate performance metrics
+        portfolio_values = [p["portfolioValue"] for p in backtest_results]
+        returns = np.diff(portfolio_values) / portfolio_values[:-1]
+        
+        metrics = {
+            "total_return": (portfolio_values[-1] - initial_investment) / initial_investment,
+            "annualized_return": (1 + returns.mean()) ** 252 - 1,
+            "volatility": returns.std() * np.sqrt(252),
+            "sharpe_ratio": (returns.mean() * 252) / (returns.std() * np.sqrt(252)),
+            "max_drawdown": (np.maximum.accumulate(portfolio_values) - portfolio_values) / np.maximum.accumulate(portfolio_values),
+            "backtest_results": backtest_results
+        }
+        
+        return metrics 

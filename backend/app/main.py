@@ -1,11 +1,16 @@
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
-from typing import List, Dict
+from typing import List, Dict, Optional
 import uvicorn
 from pydantic import BaseModel
 import logging
 from datetime import datetime
+from sqlalchemy.orm import Session
+from . import models, schemas
+from .core.database import SessionLocal, engine
+from app.services.portfolio_manager import PortfolioManager
+import json
 
 app = FastAPI(
     title="Robo Advisor API",
@@ -16,7 +21,7 @@ app = FastAPI(
 # Configure CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000"],  # React frontend
+    allow_origins=["*"],  # Allow all origins during development
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -55,6 +60,49 @@ class GoalCreate(BaseModel):
     current_amount: float
     target_date: str
     type: str
+
+class TaxLossHarvestRequest(BaseModel):
+    symbol: str
+
+class NewsItem(BaseModel):
+    id: int
+    title: str
+    summary: str
+    source: str
+    url: str
+    category: str
+    published_at: str
+
+class EducationalContent(BaseModel):
+    id: int
+    title: str
+    description: str
+    category: str
+    difficulty: str
+    reading_time: int
+
+class SimulationRequest(BaseModel):
+    time_horizon: int
+    initial_investment: float
+    monthly_contribution: float
+
+class BacktestRequest(BaseModel):
+    allocation: Dict[str, float]
+    time_horizon: int
+    initial_investment: float
+
+class ScenarioRequest(BaseModel):
+    allocation: Dict[str, float]
+    time_horizon: int
+    initial_investment: float
+
+# Dependency
+def get_db():
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
 
 @app.get("/")
 async def root():
@@ -454,6 +502,417 @@ async def delete_goal(goal_id: int):
     except Exception as e:
         logger.error(f"Error deleting goal: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/portfolio/{portfolio_id}/tax-loss-harvest")
+async def get_tax_loss_opportunities(portfolio_id: int):
+    try:
+        logger.info(f"Fetching tax loss opportunities for portfolio {portfolio_id}")
+        
+        # Get current prices (mock data for now)
+        current_prices = {
+            "VTI": 220.50,
+            "VXUS": 55.25,
+            "BND": 72.30,
+            "BNDX": 48.75,
+            "VNQ": 82.40,
+            "GSG": 20.15
+        }
+        
+        # Get transaction history (mock data for now)
+        transactions = [
+            {"symbol": "VTI", "price": 230.50, "shares": 100},
+            {"symbol": "VXUS", "price": 58.75, "shares": 200},
+            {"symbol": "BND", "price": 75.30, "shares": 150},
+        ]
+        
+        portfolio_manager = PortfolioManager()
+        opportunities = portfolio_manager.calculate_tax_loss_harvest(transactions, current_prices)
+        
+        # Add current prices to the opportunities
+        for opp in opportunities:
+            opp["current_price"] = current_prices[opp["symbol"]]
+            opp["purchase_price"] = next(
+                t["price"] for t in transactions if t["symbol"] == opp["symbol"]
+            )
+        
+        logger.info(f"Found {len(opportunities)} tax loss harvesting opportunities")
+        return {"opportunities": opportunities}
+    except Exception as e:
+        logger.error(f"Error calculating tax loss opportunities: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/portfolio/{portfolio_id}/tax-loss-harvest")
+async def execute_tax_loss_harvest(portfolio_id: int, data: TaxLossHarvestRequest):
+    try:
+        logger.info(f"Executing tax loss harvest for portfolio {portfolio_id}, symbol {data.symbol}")
+        
+        # In a real application, this would:
+        # 1. Sell the losing position
+        # 2. Buy a similar but not substantially identical security
+        # 3. Record the tax loss
+        # 4. Update the portfolio
+        
+        # For now, just return a success message
+        return {
+            "message": f"Successfully harvested tax loss for {data.symbol}",
+            "realized_loss": 1000  # Mock data
+        }
+    except Exception as e:
+        logger.error(f"Error executing tax loss harvest: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/news")
+async def get_news():
+    try:
+        logger.info("Fetching market news")
+        # In a real application, this would fetch from a news API
+        # For now, return mock data
+        news = [
+            {
+                "id": 1,
+                "title": "Market Rally Continues as Tech Stocks Lead Gains",
+                "summary": "Major indices posted strong gains today as technology companies reported better-than-expected earnings.",
+                "source": "Financial Times",
+                "url": "https://example.com/news/1",
+                "category": "Market Analysis",
+                "published_at": "2024-03-20T10:00:00Z"
+            },
+            {
+                "id": 2,
+                "title": "Federal Reserve Maintains Interest Rates",
+                "summary": "The Federal Reserve kept interest rates unchanged, citing stable inflation and continued economic growth.",
+                "source": "Reuters",
+                "url": "https://example.com/news/2",
+                "category": "Economic News",
+                "published_at": "2024-03-19T15:30:00Z"
+            },
+            {
+                "id": 3,
+                "title": "New ESG Investment Guidelines Released",
+                "summary": "Regulatory body releases updated guidelines for environmental, social, and governance investments.",
+                "source": "Bloomberg",
+                "url": "https://example.com/news/3",
+                "category": "ESG",
+                "published_at": "2024-03-18T09:15:00Z"
+            }
+        ]
+        return {"news": news}
+    except Exception as e:
+        logger.error(f"Error fetching news: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/education")
+async def get_educational_content():
+    try:
+        logger.info("Fetching educational content")
+        # In a real application, this would fetch from a content management system
+        # For now, return mock data
+        content = [
+            {
+                "id": 1,
+                "title": "Understanding Asset Allocation",
+                "description": "Learn the fundamentals of portfolio diversification and how to create a balanced investment strategy.",
+                "category": "Portfolio Management",
+                "difficulty": "beginner",
+                "reading_time": 5
+            },
+            {
+                "id": 2,
+                "title": "Advanced Options Trading Strategies",
+                "description": "Explore sophisticated options trading techniques and risk management strategies.",
+                "category": "Trading",
+                "difficulty": "advanced",
+                "reading_time": 15
+            },
+            {
+                "id": 3,
+                "title": "Tax-Efficient Investing Guide",
+                "description": "Understanding tax implications of different investment strategies and how to minimize your tax burden.",
+                "category": "Tax Planning",
+                "difficulty": "intermediate",
+                "reading_time": 8
+            },
+            {
+                "id": 4,
+                "title": "Market Analysis Fundamentals",
+                "description": "Learn how to analyze market trends, read financial statements, and make informed investment decisions.",
+                "category": "Analysis",
+                "difficulty": "beginner",
+                "reading_time": 10
+            }
+        ]
+        return {"content": content}
+    except Exception as e:
+        logger.error(f"Error fetching educational content: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/portfolio/{portfolio_id}/efficient-frontier")
+async def get_efficient_frontier(portfolio_id: int):
+    try:
+        logger.info(f"Starting efficient frontier calculation for portfolio {portfolio_id}")
+        portfolio_manager = PortfolioManager()
+        logger.info("Created PortfolioManager instance")
+        
+        efficient_frontier = portfolio_manager.calculate_efficient_frontier()
+        logger.info(f"Calculated efficient frontier with {len(efficient_frontier)} points")
+        
+        # Log a sample point for debugging
+        if efficient_frontier:
+            logger.info(f"Sample portfolio point: {efficient_frontier[0]}")
+        
+        return {"efficient_frontier": efficient_frontier}
+    except Exception as e:
+        logger.error(f"Error calculating efficient frontier: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/portfolio/{portfolio_id}/simulate")
+async def simulate_portfolio(portfolio_id: int, data: SimulationRequest):
+    try:
+        logger.info(f"Starting portfolio simulation for portfolio {portfolio_id}")
+        portfolio_manager = PortfolioManager()
+        
+        # Get current portfolio allocation
+        portfolio = await get_portfolio(portfolio_id)
+        current_allocation = {asset["symbol"]: asset["allocation"] for asset in portfolio["assets"]}
+        
+        # Run simulation
+        simulation_results = portfolio_manager.simulate_portfolio(
+            current_allocation,
+            data.initial_investment,
+            data.monthly_contribution,
+            data.time_horizon
+        )
+        
+        logger.info(f"Simulation completed with {len(simulation_results)} data points")
+        return {"simulation_results": simulation_results}
+    except Exception as e:
+        logger.error(f"Error running portfolio simulation: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/portfolio/{portfolio_id}/backtest")
+async def backtest_portfolio(portfolio_id: int, data: BacktestRequest):
+    try:
+        logger.info(f"Starting portfolio backtest for portfolio {portfolio_id}")
+        portfolio_manager = PortfolioManager()
+        
+        # Run backtest
+        backtest_results = portfolio_manager.backtest_portfolio(
+            data.allocation,
+            data.initial_investment,
+            data.time_horizon
+        )
+        
+        logger.info(f"Backtest completed with {len(backtest_results)} data points")
+        return {"backtest_results": backtest_results}
+    except Exception as e:
+        logger.error(f"Error running portfolio backtest: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/portfolio/{portfolio_id}/analyze-scenario")
+async def analyze_scenario(portfolio_id: int, data: ScenarioRequest):
+    try:
+        logger.info(f"Starting scenario analysis for portfolio {portfolio_id}")
+        portfolio_manager = PortfolioManager()
+        
+        # Run scenario analysis
+        scenario_results = portfolio_manager.analyze_scenario(
+            data.allocation,
+            data.initial_investment,
+            data.time_horizon
+        )
+        
+        logger.info("Scenario analysis completed successfully")
+        return scenario_results
+    except Exception as e:
+        logger.error(f"Error running scenario analysis: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+# Self-defined portfolio endpoints
+@app.post("/api/self-defined-portfolios/", response_model=schemas.SelfDefinedPortfolio)
+def create_self_defined_portfolio(
+    portfolio: schemas.SelfDefinedPortfolioCreate,
+    db: Session = Depends(get_db)
+):
+    db_portfolio = models.SelfDefinedPortfolio(
+        name=portfolio.name,
+        total_investment=portfolio.total_investment
+    )
+    db.add(db_portfolio)
+    db.commit()
+    db.refresh(db_portfolio)
+    
+    # Add assets
+    for asset in portfolio.assets:
+        db_asset = models.SelfDefinedPortfolioAsset(
+            portfolio_id=db_portfolio.id,
+            symbol=asset.symbol,
+            allocation=asset.allocation,
+            shares=asset.shares,
+            value=asset.value
+        )
+        db.add(db_asset)
+    
+    db.commit()
+    return db_portfolio
+
+@app.get("/api/self-defined-portfolios/", response_model=List[schemas.SelfDefinedPortfolio])
+def get_self_defined_portfolios(db: Session = Depends(get_db)):
+    return db.query(models.SelfDefinedPortfolio).all()
+
+@app.get("/api/self-defined-portfolios/{portfolio_id}", response_model=schemas.SelfDefinedPortfolio)
+def get_self_defined_portfolio(portfolio_id: int, db: Session = Depends(get_db)):
+    portfolio = db.query(models.SelfDefinedPortfolio).filter(models.SelfDefinedPortfolio.id == portfolio_id).first()
+    if not portfolio:
+        raise HTTPException(status_code=404, detail="Portfolio not found")
+    return portfolio
+
+@app.put("/api/self-defined-portfolios/{portfolio_id}", response_model=schemas.SelfDefinedPortfolio)
+def update_self_defined_portfolio(
+    portfolio_id: int,
+    portfolio: schemas.SelfDefinedPortfolioUpdate,
+    db: Session = Depends(get_db)
+):
+    db_portfolio = db.query(models.SelfDefinedPortfolio).filter(models.SelfDefinedPortfolio.id == portfolio_id).first()
+    if not db_portfolio:
+        raise HTTPException(status_code=404, detail="Portfolio not found")
+    
+    # Update portfolio attributes
+    for key, value in portfolio.dict(exclude_unset=True).items():
+        if key != "assets":
+            setattr(db_portfolio, key, value)
+    
+    # Update assets if provided
+    if portfolio.assets:
+        # Remove existing assets
+        db.query(models.SelfDefinedPortfolioAsset).filter(
+            models.SelfDefinedPortfolioAsset.portfolio_id == portfolio_id
+        ).delete()
+        
+        # Add new assets
+        for asset in portfolio.assets:
+            db_asset = models.SelfDefinedPortfolioAsset(
+                portfolio_id=portfolio_id,
+                symbol=asset.symbol,
+                allocation=asset.allocation,
+                shares=asset.shares,
+                value=asset.value
+            )
+            db.add(db_asset)
+    
+    db.commit()
+    db.refresh(db_portfolio)
+    return db_portfolio
+
+@app.delete("/api/self-defined-portfolios/{portfolio_id}")
+def delete_self_defined_portfolio(portfolio_id: int, db: Session = Depends(get_db)):
+    portfolio = db.query(models.SelfDefinedPortfolio).filter(models.SelfDefinedPortfolio.id == portfolio_id).first()
+    if not portfolio:
+        raise HTTPException(status_code=404, detail="Portfolio not found")
+    
+    db.delete(portfolio)
+    db.commit()
+    return {"message": "Portfolio deleted successfully"}
+
+# Portfolio simulation endpoints
+@app.post("/api/self-defined-portfolios/{portfolio_id}/simulate")
+def simulate_portfolio(
+    portfolio_id: int,
+    simulation: schemas.PortfolioSimulationCreate,
+    db: Session = Depends(get_db)
+):
+    portfolio = db.query(models.SelfDefinedPortfolio).filter(models.SelfDefinedPortfolio.id == portfolio_id).first()
+    if not portfolio:
+        raise HTTPException(status_code=404, detail="Portfolio not found")
+    
+    # Get portfolio allocation
+    allocation = {asset.symbol: asset.allocation for asset in portfolio.assets}
+    
+    # Run simulation
+    portfolio_manager = PortfolioManager()
+    results = portfolio_manager.simulate_portfolio(
+        allocation=allocation,
+        initial_investment=simulation.initial_investment,
+        monthly_contribution=simulation.monthly_contribution,
+        time_horizon=simulation.time_horizon
+    )
+    
+    # Save simulation results
+    db_simulation = models.PortfolioSimulation(
+        portfolio_id=portfolio_id,
+        name=simulation.name,
+        time_horizon=simulation.time_horizon,
+        initial_investment=simulation.initial_investment,
+        monthly_contribution=simulation.monthly_contribution,
+        results=json.dumps(results)
+    )
+    db.add(db_simulation)
+    db.commit()
+    
+    return results
+
+@app.get("/api/self-defined-portfolios/{portfolio_id}/simulations")
+def get_portfolio_simulations(portfolio_id: int, db: Session = Depends(get_db)):
+    simulations = db.query(models.PortfolioSimulation).filter(
+        models.PortfolioSimulation.portfolio_id == portfolio_id
+    ).all()
+    return simulations
+
+# Portfolio comparison endpoint
+@app.post("/api/self-defined-portfolios/compare")
+def compare_portfolios(
+    comparison: schemas.PortfolioComparison,
+    db: Session = Depends(get_db)
+):
+    portfolio_manager = PortfolioManager()
+    results = {}
+    
+    for portfolio_id in comparison.portfolio_ids:
+        portfolio = db.query(models.SelfDefinedPortfolio).filter(
+            models.SelfDefinedPortfolio.id == portfolio_id
+        ).first()
+        if not portfolio:
+            continue
+        
+        # Get portfolio allocation
+        allocation = {asset.symbol: asset.allocation for asset in portfolio.assets}
+        
+        # Run simulation
+        simulation_results = portfolio_manager.simulate_portfolio(
+            allocation=allocation,
+            initial_investment=comparison.initial_investment,
+            monthly_contribution=comparison.monthly_contribution,
+            time_horizon=comparison.time_horizon
+        )
+        
+        results[portfolio.name] = simulation_results
+    
+    return results
+
+@app.get("/api/available-symbols")
+def get_available_symbols():
+    """Get list of available symbols for portfolio creation."""
+    return [
+        "VTI",   # Vanguard Total Stock Market ETF
+        "VXUS",  # Vanguard Total International Stock ETF
+        "BND",   # Vanguard Total Bond Market ETF
+        "BNDX",  # Vanguard Total International Bond ETF
+        "VNQ",   # Vanguard Real Estate ETF
+        "GSG",   # iShares S&P GSCI Commodity ETF
+        "SPY",   # SPDR S&P 500 ETF
+        "QQQ",   # Invesco QQQ Trust
+        "IWM",   # iShares Russell 2000 ETF
+        "AGG",   # iShares Core U.S. Aggregate Bond ETF
+        "TLT",   # iShares 20+ Year Treasury Bond ETF
+        "GLD",   # SPDR Gold Trust
+        "SLV",   # iShares Silver Trust
+        "DIA",   # SPDR Dow Jones Industrial Average ETF
+        "XLF",   # Financial Select Sector SPDR Fund
+        "XLK",   # Technology Select Sector SPDR Fund
+        "XLE",   # Energy Select Sector SPDR Fund
+        "XLV",   # Health Care Select Sector SPDR Fund
+        "XLP",   # Consumer Staples Select Sector SPDR Fund
+        "XLY",   # Consumer Discretionary Select Sector SPDR Fund
+    ]
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True) 

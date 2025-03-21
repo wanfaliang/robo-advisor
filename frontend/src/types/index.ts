@@ -67,4 +67,44 @@ export interface Goal {
   current_amount: number;
   target_date: string;
   type: 'retirement' | 'house' | 'education' | 'other';
+}
+
+export interface SelfDefinedPortfolioAsset {
+  symbol: string;
+  allocation: number;
+  shares: number;
+  value: number;
+}
+
+export interface SelfDefinedPortfolio {
+  id: number;
+  name: string;
+  total_investment: number;
+  assets: SelfDefinedPortfolioAsset[];
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface PortfolioSimulation {
+  id: number;
+  portfolio_id: number;
+  name: string;
+  time_horizon: number;
+  initial_investment: number;
+  monthly_contribution: number;
+  created_at: string;
+  results: string;
+}
+
+export interface PortfolioSimulationResult {
+  date: string;
+  portfolioValue: number;
+  benchmarkValue: number;
+}
+
+export interface PortfolioComparison {
+  portfolio_ids: number[];
+  time_horizon: number;
+  initial_investment: number;
+  monthly_contribution: number;
 } 
